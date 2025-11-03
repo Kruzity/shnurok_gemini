@@ -112,6 +112,10 @@ async function processBatch(items) {
     processingState.currentItem = null;
 }
 
+app.get('/', async (req, res) => {
+    res.send("helllo")
+})
+
 app.post('/api/process', async (req, res) => {
     const { items } = req.body;
 
