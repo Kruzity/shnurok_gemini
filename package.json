@@ -1,0 +1,23 @@
+{
+  "name": "shnurok_gemini",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.910.0",
+    "@google-cloud/vertexai": "^1.10.0",
+    "@google/genai": "^1.24.0",
+    "axios": "^1.12.2",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "google-auth-library": "^10.4.0",
+    "googleapis": "^162.0.0",
+    "sharp": "^0.34.4"
+  }
+}
