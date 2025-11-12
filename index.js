@@ -107,40 +107,86 @@ export async function processEntity(imagesArray, serverPrompt) {
     console.log(`🖼️  Изображений: ${imageUrls.length}`);
 
     // Загружаем reference изображения
-    const referenceImages = await Promise.all(
-        imageUrls.map(url => loadImageFromUrl(url))
-    );
+    let referenceImages;
+    try {
+        console.log("⏳ Загрузка изображений из URL...");
+        referenceImages = await Promise.all(
+            imageUrls.map(async (url, index) => {
+                console.log(`   ${index + 1}. Загружаю: ${url}`);
+                return await loadImageFromUrl(url);
+            })
+        );
+        console.log("✅ Все изображения загружены");
+    } catch (error) {
+        console.error("❌ Ошибка загрузки изображений:");
+        console.error("   Message:", error.message);
+        console.error("   Stack:", error.stack);
+        console.error("   Cause:", error.cause);
+        throw error;
+    }
 
     // Модель Imagen 3 для генерации
-    const imagenModel = vertexAI.preview.getGenerativeModel({
-        model: 'imagegeneration@006',
-    });
+    console.log("🔧 Инициализация Imagen модели...");
+    console.log("   Project:", process.env.GOOGLE_CLOUD_PROJECT);
+    console.log("   Location: us-central1");
+
+    let imagenModel;
+    try {
+        imagenModel = vertexAI.preview.getGenerativeModel({
+            model: 'imagegeneration@006',
+        });
+        console.log("✅ Модель инициализирована");
+    } catch (error) {
+        console.error("❌ Ошибка инициализации модели:");
+        console.error("   Message:", error.message);
+        console.error("   Stack:", error.stack);
+        throw error;
+    }
 
     console.log("🔗 Отправка запроса к Imagen 3...");
 
-    // Формируем промпт с учётом reference изображений
     const enhancedPrompt = `${serverPrompt}. Style and composition based on provided reference images.`;
+
+    console.log("📋 Параметры запроса:");
+    console.log("   Промпт длина:", enhancedPrompt.length);
+    console.log("   Reference изображений:", referenceImages.length);
 
     const request = {
         prompt: enhancedPrompt,
         numberOfImages: 6,
-        aspectRatio: '3:4', // Можно '1:1', '16:9', '9:16', '3:4', '4:3'
+        aspectRatio: '3:4',
         sampleCount: 6,
-        // Reference изображения для стиля
-        ...(referenceImages.length > 0 && {
-            referenceImages: referenceImages.map(img => ({
-                image: {
-                    bytesBase64Encoded: img.inlineData.data
-                }
-            }))
-        })
     };
 
+    console.log("📤 Отправляю запрос...");
     let response;
     try {
         response = await imagenModel.generateImages(request);
+        console.log("✅ Ответ получен!");
+        console.log("   Predictions:", response.predictions ? response.predictions.length : 'undefined');
     } catch (error) {
-        console.error("❌ Ошибка Imagen:", error.message);
+        console.error("❌ ДЕТАЛЬНАЯ ОШИБКА:");
+        console.error("   Type:", error.constructor.name);
+        console.error("   Message:", error.message);
+        console.error("   Code:", error.code);
+        console.error("   Status:", error.status);
+        console.error("   StatusCode:", error.statusCode);
+        console.error("   Details:", JSON.stringify(error.details, null, 2));
+        console.error("   Stack:", error.stack);
+
+        // Если есть причина (cause)
+        if (error.cause) {
+            console.error("   Cause:", error.cause);
+            console.error("   Cause message:", error.cause.message);
+            console.error("   Cause code:", error.cause.code);
+        }
+
+        // Если есть response
+        if (error.response) {
+            console.error("   Response status:", error.response.status);
+            console.error("   Response data:", JSON.stringify(error.response.data, null, 2));
+        }
+
         throw error;
     }
 
