@@ -7,7 +7,33 @@ import { GEMINI_CONFIG } from "./configs/gemini_config.js";
 import { upload as uploadToS3 } from "./API/amazonS3API.js";
 
 
-dotenv.config()
+dotenv.config();
+
+const VPN_IP = '10.8.0.80'; // Ваш IP из tun0
+
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async function (url, options = {}) {
+    // Только для запросов к Google API используем кастомную настройку
+    if (typeof url === 'string' && url.includes('googleapis.com')) {
+        try {
+            // Импортируем undici для кастомного агента
+            const { fetch: undiciFetch, Agent } = await import('undici');
+
+            const agent = new Agent({
+                connect: {
+                    localAddress: VPN_IP
+                }
+            });
+
+            options.dispatcher = agent;
+            return undiciFetch(url, options);
+        } catch (error) {
+            console.error('⚠️  Ошибка создания VPN агента, используем стандартный fetch:', error.message);
+            return originalFetch(url, options);
+        }
+    }
+    return originalFetch(url, options);
+};
 
 // Функция для создания папки, если её нет
 function ensureDirectoryExists(dirPath) {
