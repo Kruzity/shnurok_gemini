@@ -5,9 +5,16 @@ import sharp from "sharp";
 import path from "path";
 import { GEMINI_CONFIG } from "./configs/gemini_config.js";
 import { upload as uploadToS3 } from "./API/amazonS3API.js";
+import { VertexAI } from '@google-cloud/aiplatform';
 
 
 dotenv.config();
+
+const vertexAI = new VertexAI({
+    project: process.env.GOOGLE_CLOUD_PROJECT, // ID проекта
+    location: 'europe-west1', // или us-central1
+    keyFilename: './credentials/gen-lang-client-0899262511-8141dc1b646c.json'
+});
 
 // Функция для создания папки, если её нет
 function ensureDirectoryExists(dirPath) {
@@ -86,8 +93,8 @@ async function resizeImageTo2304x3080(imagePath) {
 }
 
 export async function processEntity(imagesArray, serverPrompt) {
-    const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY
+    const model = vertexAI.getGenerativeModel({
+        model: 'gemini-2.0-flash-exp'
     });
 
     const outputDir = "generated_images";
@@ -106,8 +113,7 @@ export async function processEntity(imagesArray, serverPrompt) {
         ...images
     ];
 
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-image",
+    const response = await model.generateContent({
         contents: prompt,
     });
 
