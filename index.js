@@ -102,58 +102,80 @@ export async function processEntity(imagesArray, serverPrompt) {
 
     const imageUrls = imagesArray
 
-    const images = await Promise.all(
+    console.log("🔗 Подготовка изображений...");
+    console.log(`📝 Промпт: ${serverPrompt.substring(0, 100)}...`);
+    console.log(`🖼️  Изображений: ${imageUrls.length}`);
+
+    // Загружаем reference изображения
+    const referenceImages = await Promise.all(
         imageUrls.map(url => loadImageFromUrl(url))
     );
 
-    const prompt = [
-        {
-            text: serverPrompt
-        },
-        ...images
-    ];
-
-    const response = await model.generateContent({
-        contents: [{ role: 'user', parts: prompt }],
+    // Модель Imagen 3 для генерации
+    const imagenModel = vertexAI.preview.getGenerativeModel({
+        model: 'imagegeneration@006',
     });
 
-    console.log("Processing response...\n");
+    console.log("🔗 Отправка запроса к Imagen 3...");
+
+    // Формируем промпт с учётом reference изображений
+    const enhancedPrompt = `${serverPrompt}. Style and composition based on provided reference images.`;
+
+    const request = {
+        prompt: enhancedPrompt,
+        numberOfImages: 6,
+        aspectRatio: '3:4', // Можно '1:1', '16:9', '9:16', '3:4', '4:3'
+        sampleCount: 6,
+        // Reference изображения для стиля
+        ...(referenceImages.length > 0 && {
+            referenceImages: referenceImages.map(img => ({
+                image: {
+                    bytesBase64Encoded: img.inlineData.data
+                }
+            }))
+        })
+    };
+
+    let response;
+    try {
+        response = await imagenModel.generateImages(request);
+    } catch (error) {
+        console.error("❌ Ошибка Imagen:", error.message);
+        throw error;
+    }
+
+    console.log("✅ Изображения сгенерированы!");
 
     let imageCounter = 1;
     const timestamp = Date.now();
     const uploadedUrls = [];
 
-    for (const part of response.candidates[0].content.parts) {
-        if (part.text) {
-            console.log("📄 Text response:");
-            console.log(part.text);
-            console.log("\n---\n");
-        } else if (part.inlineData) {
-            const imageData = part.inlineData.data;
-            const buffer = Buffer.from(imageData, "base64");
+    // Обработка сгенерированных изображений
+    for (const prediction of response.predictions) {
+        const imageData = prediction.bytesBase64Encoded;
+        const buffer = Buffer.from(imageData, "base64");
 
-            const filename = `gemini-image-${timestamp}-${imageCounter}.png`;
-            const filePath = path.join(outputDir, filename);
-            fs.writeFileSync(filePath, buffer);
+        const filename = `imagen-${timestamp}-${imageCounter}.png`;
+        const filePath = path.join(outputDir, filename);
+        fs.writeFileSync(filePath, buffer);
 
-            console.log(`✓ Image ${imageCounter} saved as ${filePath}`);
+        console.log(`✓ Image ${imageCounter} saved as ${filePath}`);
 
-            const resizeResult = await resizeImageTo2304x3080(filePath);
+        // Ресайз
+        await resizeImageTo2304x3080(filePath);
 
-            try {
-                console.log(`📤 Загрузка изображения ${imageCounter} в S3...`);
-                const s3Key = `photos/${filename}`;
-                const s3Url = await uploadToS3(filePath, s3Key);
-                uploadedUrls.push(s3Url);
+        try {
+            console.log(`📤 Загрузка изображения ${imageCounter} в S3...`);
+            const s3Key = `photos/${filename}`;
+            const s3Url = await uploadToS3(filePath, s3Key);
+            uploadedUrls.push(s3Url);
 
-                await deleteFile(filePath);
-
-            } catch (error) {
-                console.error(`❌ Ошибка при загрузке изображения ${imageCounter} в S3:`, error.message);
-            }
-
-            imageCounter++;
+            await deleteFile(filePath);
+        } catch (error) {
+            console.error(`❌ Ошибка при загрузке изображения ${imageCounter} в S3:`, error.message);
         }
+
+        imageCounter++;
     }
 
     console.log(`\n📊 Итоги:`);
