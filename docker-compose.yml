@@ -31,7 +31,7 @@ services:
       - vpn
     environment:
       - NODE_ENV=production
-      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_PROJECT_ID=${GOOGLE_CLOUD_PROJECT_ID}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/gen-lang-client-0899262511-8141dc1b646c.json
       - PORT=${PORT:-3000}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
