@@ -5,7 +5,7 @@ import sharp from "sharp";
 import path from "path";
 import { GEMINI_CONFIG } from "./configs/gemini_config.js";
 import { upload as uploadToS3 } from "./API/amazonS3API.js";
-import { VertexAI } from '@google-cloud/aiplatform';
+import { VertexAI } from '@google-cloud/vertexai';
 
 
 dotenv.config();
