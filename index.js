@@ -11,7 +11,7 @@ import { VertexAI } from '@google-cloud/vertexai';
 dotenv.config();
 
 const vertexAI = new VertexAI({
-    project: process.env.GOOGLE_CLOUD_PROJECT, // ID проекта
+    project: process.env.GOOGLE_CLOUD_PROJECT_ID, // ID проекта
     location: 'europe-west1', // или us-central1
     keyFilename: './credentials/gen-lang-client-0899262511-8141dc1b646c.json'
 });
