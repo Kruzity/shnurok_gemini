@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  vpn:
+    image: dperson/openvpn-client
+    container_name: gemini-vpn
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    volumes:
+      - /etc/openvpn/client/main_profile.conf:/vpn/vpn.ovpn:ro
+    environment:
+      - FIREWALL=''
+      - ROUTE=''
+      - VPNPORT=1194
+    restart: unless-stopped
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+
+  app:
+    build: .
+    container_name: gemini-app
+    network_mode: "service:vpn"
+    depends_on:
+      - vpn
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./generated_images:/app/generated_images
+      - ./API:/app/API
+      - ./configs:/app/configs
