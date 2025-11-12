@@ -114,7 +114,7 @@ export async function processEntity(imagesArray, serverPrompt) {
     ];
 
     const response = await model.generateContent({
-        contents: prompt,
+        contents: [{ role: 'user', parts: prompt }],
     });
 
     console.log("Processing response...\n");
