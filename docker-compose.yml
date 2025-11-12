@@ -31,10 +31,12 @@ services:
       - vpn
     environment:
       - NODE_ENV=production
-    env_file:
-      - .env
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PORT=${PORT:-3000}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
     restart: unless-stopped
     volumes:
       - ./generated_images:/app/generated_images
-      - ./API:/app/API
-      - ./configs:/app/configs
