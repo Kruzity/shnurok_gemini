@@ -113,6 +113,8 @@ export async function processEntity(imagesArray, serverPrompt) {
 
     console.log("Processing response...\n");
 
+    console.log(response)
+
     let imageCounter = 1;
     const timestamp = Date.now();
     const uploadedUrls = [];
