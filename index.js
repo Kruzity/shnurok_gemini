@@ -5,16 +5,9 @@ import sharp from "sharp";
 import path from "path";
 import { GEMINI_CONFIG } from "./configs/gemini_config.js";
 import { upload as uploadToS3 } from "./API/amazonS3API.js";
-import { VertexAI } from '@google-cloud/vertexai';
 
 
-dotenv.config();
-
-const vertexAI = new VertexAI({
-    project: process.env.GOOGLE_CLOUD_PROJECT_ID, // ID проекта
-    location: 'europe-west1', // или us-central1
-    keyFilename: './credentials/gen-lang-client-0899262511-8141dc1b646c.json'
-});
+dotenv.config()
 
 // Функция для создания папки, если её нет
 function ensureDirectoryExists(dirPath) {
@@ -93,8 +86,8 @@ async function resizeImageTo2304x3080(imagePath) {
 }
 
 export async function processEntity(imagesArray, serverPrompt) {
-    const model = vertexAI.getGenerativeModel({
-        model: 'gemini-2.0-flash-exp'
+    const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY
     });
 
     const outputDir = "generated_images";
@@ -102,126 +95,59 @@ export async function processEntity(imagesArray, serverPrompt) {
 
     const imageUrls = imagesArray
 
-    console.log("🔗 Подготовка изображений...");
-    console.log(`📝 Промпт: ${serverPrompt.substring(0, 100)}...`);
-    console.log(`🖼️  Изображений: ${imageUrls.length}`);
+    const images = await Promise.all(
+        imageUrls.map(url => loadImageFromUrl(url))
+    );
 
-    // Загружаем reference изображения
-    let referenceImages;
-    try {
-        console.log("⏳ Загрузка изображений из URL...");
-        referenceImages = await Promise.all(
-            imageUrls.map(async (url, index) => {
-                console.log(`   ${index + 1}. Загружаю: ${url}`);
-                return await loadImageFromUrl(url);
-            })
-        );
-        console.log("✅ Все изображения загружены");
-    } catch (error) {
-        console.error("❌ Ошибка загрузки изображений:");
-        console.error("   Message:", error.message);
-        console.error("   Stack:", error.stack);
-        console.error("   Cause:", error.cause);
-        throw error;
-    }
+    const prompt = [
+        {
+            text: serverPrompt
+        },
+        ...images
+    ];
 
-    // Модель Imagen 3 для генерации
-    console.log("🔧 Инициализация Imagen модели...");
-    console.log("   Project:", process.env.GOOGLE_CLOUD_PROJECT);
-    console.log("   Location: us-central1");
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-image",
+        contents: prompt,
+    });
 
-    let imagenModel;
-    try {
-        imagenModel = vertexAI.preview.getGenerativeModel({
-            model: 'imagegeneration@006',
-        });
-        console.log("✅ Модель инициализирована");
-    } catch (error) {
-        console.error("❌ Ошибка инициализации модели:");
-        console.error("   Message:", error.message);
-        console.error("   Stack:", error.stack);
-        throw error;
-    }
-
-    console.log("🔗 Отправка запроса к Imagen 3...");
-
-    const enhancedPrompt = `${serverPrompt}. Style and composition based on provided reference images.`;
-
-    console.log("📋 Параметры запроса:");
-    console.log("   Промпт длина:", enhancedPrompt.length);
-    console.log("   Reference изображений:", referenceImages.length);
-
-    const request = {
-        prompt: enhancedPrompt,
-        numberOfImages: 6,
-        aspectRatio: '3:4',
-        sampleCount: 6,
-    };
-
-    console.log("📤 Отправляю запрос...");
-    let response;
-    try {
-        response = await imagenModel.generateImages(request);
-        console.log("✅ Ответ получен!");
-        console.log("   Predictions:", response.predictions ? response.predictions.length : 'undefined');
-    } catch (error) {
-        console.error("❌ ДЕТАЛЬНАЯ ОШИБКА:");
-        console.error("   Type:", error.constructor.name);
-        console.error("   Message:", error.message);
-        console.error("   Code:", error.code);
-        console.error("   Status:", error.status);
-        console.error("   StatusCode:", error.statusCode);
-        console.error("   Details:", JSON.stringify(error.details, null, 2));
-        console.error("   Stack:", error.stack);
-
-        // Если есть причина (cause)
-        if (error.cause) {
-            console.error("   Cause:", error.cause);
-            console.error("   Cause message:", error.cause.message);
-            console.error("   Cause code:", error.cause.code);
-        }
-
-        // Если есть response
-        if (error.response) {
-            console.error("   Response status:", error.response.status);
-            console.error("   Response data:", JSON.stringify(error.response.data, null, 2));
-        }
-
-        throw error;
-    }
-
-    console.log("✅ Изображения сгенерированы!");
+    console.log("Processing response...\n");
 
     let imageCounter = 1;
     const timestamp = Date.now();
     const uploadedUrls = [];
 
-    // Обработка сгенерированных изображений
-    for (const prediction of response.predictions) {
-        const imageData = prediction.bytesBase64Encoded;
-        const buffer = Buffer.from(imageData, "base64");
+    for (const part of response.candidates[0].content.parts) {
+        if (part.text) {
+            console.log("📄 Text response:");
+            console.log(part.text);
+            console.log("\n---\n");
+        } else if (part.inlineData) {
+            const imageData = part.inlineData.data;
+            const buffer = Buffer.from(imageData, "base64");
 
-        const filename = `imagen-${timestamp}-${imageCounter}.png`;
-        const filePath = path.join(outputDir, filename);
-        fs.writeFileSync(filePath, buffer);
+            const filename = `gemini-image-${timestamp}-${imageCounter}.png`;
+            const filePath = path.join(outputDir, filename);
+            fs.writeFileSync(filePath, buffer);
 
-        console.log(`✓ Image ${imageCounter} saved as ${filePath}`);
+            console.log(`✓ Image ${imageCounter} saved as ${filePath}`);
 
-        // Ресайз
-        await resizeImageTo2304x3080(filePath);
+            const resizeResult = await resizeImageTo2304x3080(filePath);
 
-        try {
-            console.log(`📤 Загрузка изображения ${imageCounter} в S3...`);
-            const s3Key = `photos/${filename}`;
-            const s3Url = await uploadToS3(filePath, s3Key);
-            uploadedUrls.push(s3Url);
+            try {
+                console.log(`📤 Загрузка изображения ${imageCounter} в S3...`);
+                const s3Key = `photos/${filename}`;
+                const s3Url = await uploadToS3(filePath, s3Key);
+                uploadedUrls.push(s3Url);
 
-            await deleteFile(filePath);
-        } catch (error) {
-            console.error(`❌ Ошибка при загрузке изображения ${imageCounter} в S3:`, error.message);
+                await deleteFile(filePath);
+
+            } catch (error) {
+                console.error(`❌ Ошибка при загрузке изображения ${imageCounter} в S3:`, error.message);
+            }
+
+            imageCounter++;
         }
-
-        imageCounter++;
     }
 
     console.log(`\n📊 Итоги:`);
