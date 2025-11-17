@@ -119,6 +119,10 @@ app.get('/', async (req, res) => {
 app.post('/api/process', async (req, res) => {
     const { items } = req.body;
 
+    console.log(items);
+
+    return res.status(200);
+
     if (processingState.isProcessing) {
         return res.status(409).json({
             status: 'processing',
