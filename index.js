@@ -85,7 +85,7 @@ async function resizeImageTo2304x3080(imagePath) {
     }
 }
 
-export async function processEntity(imagesArray, serverPrompt) {
+export async function processEntity(imagesArray, serverPrompts) {
     const ai = new GoogleGenAI({
         apiKey: process.env.GEMINI_API_KEY
     });
@@ -93,66 +93,82 @@ export async function processEntity(imagesArray, serverPrompt) {
     const outputDir = "generated_images";
     ensureDirectoryExists(outputDir);
 
-    const imageUrls = imagesArray
+    imagesArray = imagesArray.slice(0, 3)
 
+    const imageUrls = imagesArray;
+
+    // Загружаем изображения только один раз
+    console.log("📥 Загрузка изображений...");
     const images = await Promise.all(
         imageUrls.map(url => loadImageFromUrl(url))
     );
-
-    const prompt = [
-        {
-            text: serverPrompt
-        },
-        ...images
-    ];
-
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-image",
-        contents: prompt,
-    });
-
-    console.log("Processing response...\n");
-
-    console.log(response)
+    console.log(`✓ Загружено ${images.length} изображений\n`);
 
     let imageCounter = 1;
     const timestamp = Date.now();
     const uploadedUrls = [];
 
-    for (const part of response.candidates[0].content.parts) {
-        if (part.text) {
-            console.log("📄 Text response:");
-            console.log(part.text);
-            console.log("\n---\n");
-        } else if (part.inlineData) {
-            const imageData = part.inlineData.data;
-            const buffer = Buffer.from(imageData, "base64");
+    // Проходимся по каждому промпту
+    for (const [promptIndex, currentPrompt] of serverPrompts.entries()) {
+        console.log(`\n🔄 Обработка промпта ${promptIndex + 1}/${serverPrompts.length}`);
+        console.log(`📝 Промпт: ${currentPrompt.substring(0, 100)}${currentPrompt.length > 100 ? '...' : ''}\n`);
 
-            const filename = `gemini-image-${timestamp}-${imageCounter}.png`;
-            const filePath = path.join(outputDir, filename);
-            fs.writeFileSync(filePath, buffer);
+        const prompt = [
+            {
+                text: currentPrompt
+            },
+            ...images
+        ];
 
-            console.log(`✓ Image ${imageCounter} saved as ${filePath}`);
-
-            const resizeResult = await resizeImageTo2304x3080(filePath);
-
-            try {
-                console.log(`📤 Загрузка изображения ${imageCounter} в S3...`);
-                const s3Key = `photos/${filename}`;
-                const s3Url = await uploadToS3(filePath, s3Key);
-                uploadedUrls.push(s3Url);
-
-                await deleteFile(filePath);
-
-            } catch (error) {
-                console.error(`❌ Ошибка при загрузке изображения ${imageCounter} в S3:`, error.message);
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash-image",
+            contents: prompt,
+            config: {
+                responseModalities: ["Image"],
+                imageConfig: {
+                    aspectRatio: "3:4",
+                }
             }
+        });
 
-            imageCounter++;
+        console.log("Processing response...\n");
+
+        for (const part of response.candidates[0].content.parts) {
+            if (part.text) {
+                console.log("📄 Text response:");
+                console.log(part.text);
+                console.log("\n---\n");
+            } else if (part.inlineData) {
+                const imageData = part.inlineData.data;
+                const buffer = Buffer.from(imageData, "base64");
+
+                const filename = `gemini-image-${timestamp}-${imageCounter}.png`;
+                const filePath = path.join(outputDir, filename);
+                fs.writeFileSync(filePath, buffer);
+
+                console.log(`✓ Image ${imageCounter} saved as ${filePath}`);
+
+                const resizeResult = await resizeImageTo2304x3080(filePath);
+
+                try {
+                    console.log(`📤 Загрузка изображения ${imageCounter} в S3...`);
+                    const s3Key = `photos/${filename}`;
+                    const s3Url = await uploadToS3(filePath, s3Key);
+                    uploadedUrls.push(s3Url);
+
+                    await deleteFile(filePath);
+
+                } catch (error) {
+                    console.error(`❌ Ошибка при загрузке изображения ${imageCounter} в S3:`, error.message);
+                }
+
+                imageCounter++;
+            }
         }
     }
 
     console.log(`\n📊 Итоги:`);
+    console.log(`   🎯 Обработано промптов: ${serverPrompts.length}`);
     console.log(`   ✅ Всего изображений сгенерировано: ${imageCounter - 1}`);
     console.log(`   ☁️  Загружено в S3: ${uploadedUrls.length}`);
 
@@ -164,6 +180,7 @@ export async function processEntity(imagesArray, serverPrompt) {
     }
 
     return {
+        totalPrompts: serverPrompts.length,
         totalGenerated: imageCounter - 1,
         uploadedUrls: uploadedUrls
     };

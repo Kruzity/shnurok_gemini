@@ -64,10 +64,10 @@ async function processBatch(items) {
 
         try {
             console.log(`\n⏳ Обработка ${i + 1}/${items.length}`);
-            console.log(`📝 Промпт: ${item.prompt.substring(0, 50)}...`);
+            console.log(`📝 Промптов: ${item.prompts.length}`);
             console.log(`🖼️  Изображений: ${item.imageUrls.length}`);
 
-            const result = await processEntity(item.imageUrls, item.prompt);
+            const result = await processEntity(item.imageUrls, item.prompts);
 
             processingState.processed++;
             processingState.remaining--;
@@ -121,8 +121,6 @@ app.post('/api/process', async (req, res) => {
 
     console.log(items);
 
-    return res.status(200);
-
     if (processingState.isProcessing) {
         return res.status(409).json({
             status: 'processing',
@@ -160,7 +158,7 @@ app.post('/api/process', async (req, res) => {
                 error: `Элемент ${i + 1}: отсутствует imageUrls`
             });
         }
-        if (!item.prompt || typeof item.prompt !== 'string') {
+        if (!item.prompts || !Array.isArray(item.prompts)) {
             return res.status(400).json({
                 status: 'error',
                 error: `Элемент ${i + 1}: отсутствует prompt`
