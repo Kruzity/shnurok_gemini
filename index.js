@@ -121,12 +121,13 @@ export async function processEntity(imagesArray, serverPrompts) {
         ];
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash-image",
+            model: "gemini-3-pro-image-preview",
             contents: prompt,
             config: {
                 responseModalities: ["Image"],
                 imageConfig: {
                     aspectRatio: "3:4",
+                    imageSize: "4K",
                 }
             }
         });
