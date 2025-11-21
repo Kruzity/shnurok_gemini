@@ -127,7 +127,7 @@ export async function processEntity(imagesArray, serverPrompts) {
                 responseModalities: ["Image"],
                 imageConfig: {
                     aspectRatio: "3:4",
-                    imageSize: "4K",
+                    imageSize: "2K",
                 }
             }
         });
