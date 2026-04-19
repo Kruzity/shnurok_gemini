@@ -87,7 +87,10 @@ async function resizeImageTo2304x3080(imagePath) {
 
 export async function processEntity(imagesArray, serverPrompts) {
     const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: {
+            baseUrl: "https://gemini-proxy.yanolfirenko9.workers.dev"
+        }
     });
 
     const outputDir = "generated_images";
